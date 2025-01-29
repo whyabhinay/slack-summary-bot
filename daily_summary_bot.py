@@ -2,7 +2,8 @@ import os
 from datetime import datetime, timedelta
 from slack_sdk import WebClient
 from dotenv import load_dotenv
-from apscheduler.schedulers.blocking import BlockingScheduler
+import logging
+import requests
 
 # Load environment variables
 load_dotenv()
@@ -10,6 +11,13 @@ load_dotenv()
 # Initialize Slack client
 slack_token = os.getenv('SLACK_BOT_TOKEN')
 client = WebClient(token=slack_token)
+
+# Configure logging
+logging.basicConfig(
+    filename='messages.log',
+    level=logging.INFO,
+    format='%(asctime)s - %(message)s'
+)
 
 # Function to fetch yesterday's messages
 def fetch_yesterdays_messages(channel_id: str):
@@ -19,7 +27,19 @@ def fetch_yesterdays_messages(channel_id: str):
         oldest=yesterday.timestamp(),
         latest=datetime.now().timestamp()
     )
-    return response['messages']
+    messages = response['messages']
+
+    # Print messages for debugging
+    print("Fetched Messages:")
+    for msg in messages:
+        print(f"User {msg.get('user')}: {msg.get('text')}")
+
+    # Log messages for debugging
+    logging.info("Fetched Messages:")
+    for msg in messages:
+        logging.info(f"User {msg.get('user')}: {msg.get('text')}")
+
+    return messages
 
 # Function to summarize messages using your local LLM
 def summarize_messages(messages):
@@ -27,7 +47,6 @@ def summarize_messages(messages):
     combined_messages = "\n".join([f"User {msg.get('user')}: {msg.get('text')}" for msg in messages])
 
     # Call your local LLM API to summarize
-    # Replace this with your actual LLM API call
     llm_api_url = 'http://localhost:5000/summarize'
     response = requests.post(llm_api_url, json={'text': combined_messages})
     return response.json().get('summary', 'No summary available.')
@@ -46,7 +65,5 @@ def daily_summary():
     summary = summarize_messages(messages)
     post_summary(channel_id, summary)
 
-# Schedule the daily summary
-scheduler = BlockingScheduler()
-scheduler.add_job(daily_summary, 'cron', hour=21, minute=0)  # 9 PM daily
-scheduler.start()
+if __name__ == '__main__':
+    daily_summary()
